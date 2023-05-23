@@ -58,7 +58,7 @@ Brangr renders the above query as roughly this HTML (though not in a quote block
 ### License
 
    Copyright 2023 Liam Breck  
-   Published at https://github.com/networkimprov/mnm-hammer
+   Published at https://github.com/networkimprov/brangr
 
    This Source Code Form is subject to the terms of the Mozilla Public  
    License, v. 2.0. If a copy of the MPL was not distributed with this  
