@@ -18,12 +18,12 @@ And it allows sites to define custom CSS styling for all aspects of the formatte
 It's fast &amp; small.
 It's a browser-based app, not a code module (although that might be arranged).
 It's built with Vue.js, in ordinary Javascript & plain CSS, 
-and employs the GraphQL.js language[1] library.
+and employs the GraphQL.js language module [1].
 It's tested on Firefox, Safari, and Chrome.
 
 More features are on the drawing board &mdash; please convey what your GraphQL users need!
 
-Try it at the [public Brangr site](https://mnmnotmail.org/brangr.html).
+Try it at the [public Brangr site](https://mnmnotmail.org/bgr/brangr.html).
 
 \
 [1] https://graphql.org/graphql-js/language
