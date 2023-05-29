@@ -1,0 +1,18 @@
+
+.fo-queryType .fv {
+/*   font-weight: bold; */
+}
+
+.fo-queryType .fv-kind {
+/*   font-weight: normal; */
+/*   font-style: italic; */
+}
+
+.fo-queryType .fn {
+   text-transform: capitalize;
+}
+
+.fo-queryType .fo-args .fv-__typename {
+   display:none;
+}
+

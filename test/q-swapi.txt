@@ -1,0 +1,11 @@
+query stuff {
+  allFilms {
+    films(_layout:{type:"table", sort:":a"}) {
+      director
+      title
+      speciesConnection(_layout:{type:"cell"}) {
+        totalCount
+      }
+    }
+  }
+}
