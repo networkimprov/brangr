@@ -3,12 +3,9 @@
 export default  {
    test: true,
 
-   title: 'Demo',
-   notes: 'A Brangr demo by its author. It calls public GraphQL services for \
-           SpaceX info, the Star Wars API ("swapi"), and countries of the world. \
-           Sadly, the whole "countries" site schema doesn\'t load, \
-           because that site limits the size of queries. (I\'m hopeful that could change \
-           for schema queries if someone asks github.com/trevorblades nicely :)',
+   title: 'Test v0.x',
+   notes: 'The whole "countries" site schema doesn\'t load, \
+           because that site limits the size of queries.',
    url: 'https://github.com/networkimprov/brangr',
 
    targets: {
