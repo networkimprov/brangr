@@ -1,0 +1,9 @@
+query {
+  launches(_layout:{type:table, sort:":d", maxh:"50vh"}) {
+    launch_date_utc
+    mission_name
+    rocket(_layout:{type:cell}) {
+      rocket_name
+    }
+  }
+}
