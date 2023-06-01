@@ -1,0 +1,303 @@
+/*
+   Copyright 2023 Liam Breck
+   Published at https://github.com/networkimprov/brangr
+
+   This Source Code Form is subject to the terms of the Mozilla Public
+   License, v. 2.0. If a copy of the MPL was not distributed with this
+   file, You can obtain one at http://mozilla.org/MPL/2.0/
+*/
+
+/*
+   CSS Class Names - Brangr v0.2
+   These class names appear in Brangr output; define them to style its appearance
+   Site-specific definitions belong in brangr_local.css
+
+   Page header, on the outermost div
+   page        - for any page
+   page-[name] - for a specific page; [name] is the page title
+   site-[name] - for a specfic site; [name] is the site selected in the site menu
+                 provided only if bgrcfg.targets is an object in the config
+
+   All other classes are on descendants of the page div.
+
+   Metadata, on child elements of the page div
+   stat     - presents any errors during query processing
+   title    - gives the page name
+   mdata    - shows two child elements when a query is successful:
+     date   - gives the local datetime of received results
+     target - gives the URL (possibly relative) that executed the query
+
+   Layout qualifiers, which always accompany the classes below (lo, fn*, fv*, fo*, fa*)
+   lst - for a stack layout (the default for fields with no _layout:{...} argument)
+   lse - for a series layout
+   lta - for a table layout
+   lce - for a cell layout
+   lli - for a list layout
+
+   Layout header, on the outermost element of any layout structure
+   lo  - for any layout
+
+   Field names, on elements that display a field name
+   fn        - for any field name
+   fn-[name] - for a specific field name; [name] is the GraphQL field name
+
+   Field values, on elements that display a simple field value
+   fv        - for any field value
+   fv-[name] - for a specific field value; [name] is the GraphQL field name
+
+   Field objects, on elements that contain a complex field value
+   fo        - for any field object
+   fo-[name] - for a specific field object; [name] is the GraphQL field name
+               for the outermost layout this is fo--top
+
+   Field object arrays, on elements that contain a list of complex field values
+   fa        - for any object array
+   fa-[name] - for a specific object array; [name] is the GraphQL field name
+
+   Field object array qualifiers, one of which may accompany the fa* classes
+   ae - for an empty array
+   ah - for a hidden, non-empty array
+
+   A sequence of fo-[name] classes selects a unique point in the layout tree:
+   .fo-op .fo-field .fo-subField .fv-someValue { ... }
+*/
+
+.page, .docs {
+   font-size: 16px;
+   color: #222;
+   font-family: Roboto, "Noto Sans", "Helvetica Neue", "Segoe UI", sans-serif,
+                "Noto Color Emoji", "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol";
+}
+
+.page code, .docs code { font-family: var(--mono) }
+
+.stat {
+   padding: 1em;
+   background: black;
+   color: gainsboro;
+}
+
+.mdata { margin-bottom: 1em }
+
+.fa.ae { font-style: italic }
+
+.lo.lst { border: 1px solid tan }
+
+.lo.lst > tr > td > div:last-child { margin-left: 1.5em }
+
+.lo.lse {
+   margin: 0.25em 0;
+   border: 1px solid tan;
+}
+
+.lo.lse > div { margin: 0.25em 0 }
+
+.lo.lse > div > div {
+   display: inline-block;
+   vertical-align: top;
+   margin: 0 0.25em;
+}
+
+.fo.lce { padding:0 0.25em }
+
+/* UI definitions
+*/
+
+body {
+   --pgbg: #fdf2da;
+   --mono: Consolas, Menlo, Monaco, monospace;
+   margin: 2em;
+   overflow-y: scroll;
+   background-color: var(--pgbg);
+}
+
+.uibg {
+   border-width: 1px;
+   border-color: #d0d0e6;
+   background-color: #efeef9;
+}
+
+.uitxt {
+   font-size: 16px;
+   color: black;
+   font-family: Cambria, "Times New Roman", Baskerville, Georgia, Times, serif;
+}
+
+.uilnk {
+   cursor: default;
+   font-size: 14px;
+   color: #666;
+   font-family: "Segoe UI", system-ui, sans-serif;
+}
+a.uilnk, .uilnk > a {
+   padding: 0.18em 0;
+   text-decoration: none;
+}
+a.uilnk:active, .uilnk > a:active {
+   background-color: #0002;
+}
+a.uilnk { color: revert; cursor: revert; }
+
+.uihide { visibility: hidden }
+
+.uipoint { cursor: pointer }
+
+.uicap1 { font-style: italic }
+
+.uinoutln:focus { outline: none }
+
+.nav {
+   position: fixed;
+   right: calc(33vw + 1em);
+   top: 0;
+   z-index: 100;
+   border-style: hidden solid solid;
+   border-radius: 0 0 5px 5px;
+   padding: 0.5em 1em;
+}
+
+.nav > .nav1st { margin-right: 1em }
+.nav > .navnth { margin-left: 0.5em }
+.nav > .navlast { margin-left: 2em }
+
+.nav > .uilnk { vertical-align: middle }
+
+.navbtn { padding: 0.25em 0.5em }
+.navbtn > span { line-height: 1 }
+
+.navset {
+   display: inline-block;
+   max-width: 27vw;
+}
+
+.navlabel {
+   display: inline-block;
+   margin: 0 0.13em;
+   border-bottom: 1px transparent solid;
+}
+.navlabel > input { margin: 0 0.18em 0 0 }
+.navlabel-flag { border-bottom-color: blue }
+
+.navset, .nav > .navlabel {
+   vertical-align: top;
+   padding-top: 0.15em;
+   font-size: 18px;
+}
+
+.navedit {
+   position: fixed;
+   right: 0;
+   top: 0;
+   z-index: 100;
+   border-style: hidden hidden solid solid;
+   border-radius: 0 0 0 5px;
+   padding: 0.5em 8px;
+}
+
+.edit {
+   position: absolute;
+   right: 8px;
+   top: 2.5em;
+   width: 33vw;
+   border: 1px solid gray;
+   background-color: inherit;
+}
+
+.editbar1 { margin: 0.25em 0.25em }
+.editbar2 { margin: 0 0.25em }
+.editbar2 > * > em { margin-right: 1em }
+
+.editbar1 > * {
+   font-size: 13px;
+   font-family: var(--mono);
+}
+.editbar1.editbar1-lg > * { font-size: 16px }
+
+.edit textarea {
+   margin: 2px 1px 1px;
+   box-sizing: border-box;
+   width: calc(100% - 2px);
+   height: 35vh;
+   min-height: 6em;
+   resize: vertical;
+   font-size: 14px;
+   font-family: var(--mono);
+}
+
+.schema {
+   position: absolute;
+   right: 1em;
+   top: 2.5em;
+   width: 25em;
+   max-height: 67vh;
+   border: 1px solid gray;
+   padding: 0.3em;
+   overflow: auto;
+   background-color: inherit;
+}
+
+.schemabtn {
+   border: 1px solid gray;
+   border-radius: 3px;
+   padding: 0 0.2em;
+   font-family: sans-serif;
+}
+.schemabtn-obj {} /* see Safari-specific section */
+
+.schemahdr {
+   border-bottom: 1px gray hidden;
+   padding-top: 0.15em;
+   padding-bottom: 0.15em;
+}
+.schemahdr-bg { background-color: #3331 }
+.schemahdr-bdr { border-bottom-style: solid }
+
+.schemaspc { padding-left: 1em }
+
+.schemasub { background-color: #fff9 }
+.schemasub-bdr {
+   border-bottom: 1px gray solid;
+   border-radius: 0 0 0 1em;
+}
+
+.schemainfo > span { text-transform: capitalize }
+
+.schemainfo > .uicap1 a { text-decoration: none }
+
+.docs { max-width: 44em }
+
+.docs > a, .docs > :not(.lo) a { text-decoration: none }
+
+.docs > table:not(.lo) { border-spacing: 0.5em }
+.docs > table:not(.lo) td { vertical-align: top }
+
+.docsnotes {
+   border: 1px solid gray;
+   padding: 0 1em;
+}
+
+.pgmaxh.fa {
+   overflow-y: hidden;
+   padding-right: 0.5em;
+}
+
+.pgmaxh.fn {
+   position: sticky;
+   top: 0;
+   background-color: var(--pgbg);
+}
+
+table { text-indent: 0 } /* normalize browsers */
+
+/* Safari 10.1+ */
+@media not all and (min-resolution:.001dpcm) { @media {
+   .navbtn { padding: 0.5em 0.5em }
+
+   .navset, .nav > .navlabel { padding-top: 0.2em }
+
+   .schemabtn-obj {
+      padding: 0.25em 0.2em 0.05em;
+      font-size: 70%;
+   }
+}}
+
