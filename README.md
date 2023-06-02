@@ -48,8 +48,9 @@ Brangr renders the above query as roughly this HTML (though not in a quote block
 
 ### Installation
 
-1. Download the latest release, and unpack its files into a website directory.
-2. Copy `tmpl_brangr-config.js` to a new file, `brangr-config.js`.\
+1. Download the [latest release](https://github.com/networkimprov/brangr/releases), 
+   and unpack its files into a website directory.
+3. Copy `tmpl_brangr-config.js` to a new file, `brangr-config.js`.\
    Edit the new file to create the config for your site.
 3. Copy `tmpl_brangr-local.css` to a new file, `brangr-local.css`.\
    No edits to this file are required at installation.
