@@ -1,0 +1,1261 @@
+<!DOCTYPE html>
+<!--
+   Copyright 2023 Liam Breck
+   Published at https://github.com/networkimprov/brangr
+
+   This Source Code Form is subject to the terms of the Mozilla Public
+   License, v. 2.0. If a copy of the MPL was not distributed with this
+   file, You can obtain one at http://mozilla.org/MPL/2.0/
+-->
+<html><head>
+   <title>Brangr</title>
+
+   <meta charset="utf-8">
+   <meta name="viewport" content="width=device-width, initial-scale=1">
+
+   <link rel="stylesheet" href="brangr.css"/>
+   <link rel="stylesheet" href="brangr-local.css"/>
+   <!--script type="importmap">
+   { "imports": { 
+      "vue":     "https://cdnjs.cloudflare.com/ajax/libs/vue/3.3.4/vue.esm-browser.min.js",
+      "graphql": "https://cdn.jsdelivr.net/npm/graphql@16.6.0/+esm",
+      "bgrcfg":  "./brangr-config.js"
+   }}
+   </script-->
+</head><body>
+<base target="_blank">
+
+<script>
+   var bgr = {
+      app: null,
+      appRoot: null,
+      queryParse: null,
+      findLayout: null,
+   };
+   window.onload = () => {
+      bgr.appRoot = bgr.app.mount('#bgr-app');
+   };
+   function treeWalk(iMap, iNode, iPath, iLog) {
+      if (!iPath) {
+         iPath = ['opDef'];
+         const aArg = bgr.findLayout(iMap, [], iPath[0]);
+         if (aArg)
+            iLog[0] += '\n   '+ iPath +'   everything!';
+      }
+      for (let [aK, aV] of Object.entries(iNode)) {
+         if (aV !== null && typeof aV === 'object') {
+            const aArg = bgr.findLayout(iMap, iPath, aK);
+            if (aArg)
+               iLog[0] += '\n   '+ iPath +','+ aK +'   '+ JSON.stringify(aV);
+         }
+         while (Array.isArray(aV)) {
+            aV = aV.length ? aV[0] : false;
+         }
+         if (aV !== null && typeof aV === 'object') {
+            iPath.push(aK);
+            treeWalk(iMap, aV, iPath, iLog);
+            iPath.pop();
+         }
+      }
+   }
+   if (!Array.prototype.findLast) // missing in prior Safari
+      Array.prototype.findLast = function(iFn) {
+         for (var a = this.length-1; a >= 0; --a)
+            if (iFn(this[a]))
+               return this[a];
+         return null;
+      };
+</script>
+
+<div id="bgr-app"><div style="text-align:center; color:tan">
+   <h3>Brangr - Browse Any Graph</h3>
+   <a style="color:inherit" href="https://github.com/networkimprov/brangr">Brangr on Github</a>
+   <p>Brangr is a simple, unique tool that any website can host to provide 
+      a user-friendly browser/viewer for any GraphQL service (or many).</p>
+</div></div>
+
+<script type="text/x-template" id="bgr-main">
+   <queryedit/>
+   <div style="margin-top:3em; border-top:1px solid gray; padding-left:0.5em;
+               font-family:monospace; white-space:pre-wrap;">
+      <a @click.prevent="debug = !debug"
+         style="text-decoration:none"
+         href="#debug">Debug</a>
+      <div v-show="debug">{{logtxt}}</div>
+      <div v-show="debug" id="test">...</div>
+   </div>
+   <input ref="clipboard" style="display:none"/>
+</script><script type="module">
+   import * as Vue from "https://cdnjs.cloudflare.com/ajax/libs/vue/3.3.4/vue.esm-browser.min.js"
+
+   bgr.app = Vue.createApp({
+      template: '#bgr-main',
+      data() { return { debug: false, logtxt: '', scrollPos: {}, scrollKey: null } },
+      computed: {
+      },
+      methods: {
+         log(i) { this.logtxt += '\n'+ i },
+         setScroll() {
+            this.scrollPos[this.scrollKey] = document.scrollingElement.scrollTop;
+         },
+         scrollFor(iKey) {
+            iKey += '';
+            document.scrollingElement.scrollTop = this.scrollPos[iKey] || 0;
+            this.scrollKey = iKey;
+         },
+         copyJson(iData) {
+            this.copy(JSON.stringify(iData));
+         },
+         copySelector(iSel) {
+            this.copy(document.querySelector(iSel).outerHTML);
+         },
+         copy(iTxt) {
+            var aEl = this.$refs.clipboard;
+            aEl.value = iTxt;
+            aEl.style.display = 'inline';
+            aEl.select();
+            document.execCommand('copy');
+            aEl.style.display = 'none';
+         },
+      },
+   });
+</script>
+
+<script type="text/x-template" id="bgr-queryedit">
+   <div class="nav uibg uitxt">
+      <span class="nav1st uilnk">
+         <template v-if="!(page[item].result && page[item].layoutMap)"
+                   >Json&nbsp; Html</template>
+         <template v-else>
+            <a @click.prevent="$root.copyJson(page[item].result)"
+               title="Copy page JSON source to clipboard"
+               href="#Json">Json</a>&nbsp;
+            <a @click.prevent="$root.copySelector('.page-'+ cssId(page[item].name))"
+               title="Copy page HTML source to clipboard"
+               href="#Html">Html</a>
+         </template>
+      </span>
+      <div class="navset">
+         <label v-for="(aP, a) in page"
+                class="navlabel"
+                :class="{'navlabel-flag': item === a}">
+            <input @input="goPage(a), docs = false"
+                   :value="a"
+                   :checked="a == item && !docs"
+                   type="radio" name="pgmenu"
+                   />{{aP.name}}</label></div>
+      <button @click="addPage(), docs = false"
+              class="navnth navbtn"
+              title="Create temporary page"
+              >+</button>
+      <label class="navnth navlabel">
+         <input @input="docs = true"
+                :checked="docs"
+                type="radio" name="pgmenu"
+                />Docs</label>
+      <button @click="(schemaOpen = !schemaOpen) && getSchema()"
+              class="navlast navbtn"
+              >Schema&nbsp;
+         <span v-if="schemaOpen">&times;</span>
+         <span v-else style="font-size:80%">&#x25BD;</span>
+      </button>
+      <div v-show="schemaOpen"
+           class="schema">
+         <schema v-if="schema"
+                 :src="schema" :typemap="typemap"/>
+         <span v-else
+               >Schema...</span>
+      </div>
+   </div>
+   <docs v-if="docs"
+         :cfg="bgrcfg"/><!-- using v-show makes <docs/> re-render on any change to parent; vue bug? -->
+   <div v-for="(aP, a) in page"
+        v-show="a === item && !docs"
+        :class="['page', 'page-'+cssId(aP.name), bgrcfg.hasTargetId ? 'site-'+cssId(aP.site) : '']">
+      <div v-if="aP.logTxt"
+           class="stat">
+         <pre>{{aP.logTxt}}</pre></div>
+      <h3 class="title">{{aP.name}}</h3>
+      <div v-if="aP.result && aP.layoutMap"
+           class="mdata">
+         <code class="date"  >on {{aP.resultDate}}</code><br/>
+         <code v-if="aP.resultDate !== kLocalResult"
+               class="target">at {{bgrcfg.targets[aP.site]}}</code>
+      </div>
+      <layout v-if="aP.result && aP.layoutMap"
+              :src="aP.result" :path="'opDef'" :layout-map="aP.layoutMap"/>
+   </div>
+   <div class="navedit uibg uitxt">
+      <button @click="editOpen = !editOpen"
+              class="navbtn"
+              >Editor&nbsp;
+         <span v-if="editOpen">&times;</span>
+         <span v-else style="font-size:80%">&#x25BD;</span>
+      </button>
+      <div v-show="editOpen"
+           class="edit">
+         <div :class="['editbar1', {'editbar1-lg': bgrcfg.hasTargetId}]">
+            at site:
+            <span v-if="page[item].resultDate === kLocalResult"
+                  >{{kLocalResult}}</span>
+            <span v-else-if="Object.keys(bgrcfg.targets).length === 1"
+                  >{{bgrcfg.hasTargetId ? pageSite : bgrcfg.targets[pageSite]}}</span>
+            <select v-else
+                    @change="page[item].siteRev = $event.target.value"
+                    :value="pageSite">
+               <option v-for="(aV, aK) in bgrcfg.targets"
+                       :value="aK"
+                       >{{bgrcfg.hasTargetId ? aK : aV}}</option></select>
+         </div>
+         <div class="editbar2">
+            <button @click="exec(), docs = false"
+                    class="navbtn"
+                    >Run</button>
+            <span style="float:right">
+               <em v-if="draftN > 0 && page[item].name.startsWith('Temp-')"
+                   >Text will not be saved.</em>
+               <button @click="page[item].queryRev = page[item].siteRev = null"
+                       :disabled="page[item].queryRev === null && page[item].siteRev === null"
+                       class="navbtn"
+                       >Drop Latest Edits</button>
+            </span>
+         </div>
+         <textarea @input="page[item].queryRev = $event.target.value"
+                   :value="pageQuery"
+                   spellcheck="false"
+                   class="uinoutln"></textarea>
+      </div>
+   </div>
+</script><script type="module">
+   import bgrcfg from "./brangr-config.js"
+   import * as Vue from "https://cdnjs.cloudflare.com/ajax/libs/vue/3.3.4/vue.esm-browser.min.js"
+
+   const kLocalResult = 'local test data';
+   const kUrlTag = 'url:';
+   const kAgent = 'Brangr/0.2'+ navigator.userAgent.substring(navigator.userAgent.indexOf(' '));
+
+   if (typeof bgrcfg.title === 'string')
+      document.title = bgrcfg.title +' via '+ document.title;
+   bgrcfg.hasTargetId = bgrcfg.targets !== null && typeof bgrcfg.targets === 'object' &&
+                        !Array.isArray(bgrcfg.targets);
+   if (typeof bgrcfg.targets === 'string') {
+      bgrcfg.targets = {'0': bgrcfg.targets};
+   } else if (Array.isArray(bgrcfg.targets)) {
+      var aObj = {};
+      bgrcfg.targets.forEach((c, cI) => { aObj[cI+''] = c });
+      bgrcfg.targets = aObj;
+   }
+   if (!Array.isArray(bgrcfg.qs))
+      bgrcfg.qs = [];
+
+   bgr.app.component('queryedit', {
+      template: '#bgr-queryedit',
+      props: { },
+      data() {
+         var aDraftN = 0;
+         var aPages = bgrcfg.qs.map(c => newPage(c.name || 'Name?'+ ++aDraftN, c));
+         if (aPages.length === 0)
+            aPages.push(newPage(++aDraftN, null));
+         return { docs:false, page:aPages, item:0, draftN:aDraftN, editOpen:true,
+                  schema:null, typemap:null, schemaOpen:false, schemaCache:{} };
+      },
+      computed: {
+         pageSite()  { return this.page[this.item].siteRev  !== null ? this.page[this.item].siteRev
+                                                                     : this.page[this.item].site },
+         pageQuery() { return this.page[this.item].queryRev !== null ? this.page[this.item].queryRev
+                                                                     : this.page[this.item].query },
+         kLocalResult() { return kLocalResult },
+         bgrcfg() { return bgrcfg },
+      },
+      mounted() {
+         if (typeof bgrcfg.run === 'string') {
+            var a = bgrcfg.qs.findIndex(c => c.name === bgrcfg.run);
+            if (a >= 0)
+               this.goPage(a, 'exec');
+         } else if (typeof bgrcfg.show === 'string') {
+            var a = bgrcfg.qs.findIndex(c => c.name === bgrcfg.show);
+            if (a >= 0)
+               this.goPage(a);
+         }
+         this.$root.scrollFor(this.item);
+      },
+      watch: {
+         item: 'resetScroll',
+         docs: 'resetScroll',
+      },
+      methods: {
+         log(iPg, iTxt) { iPg.logTxt += '\n'+ iTxt },
+         cssId(i) { return i.replaceAll(' ', '_') },
+         resetScroll() {
+            this.$root.setScroll();
+            Vue.nextTick(() => { this.$root.scrollFor(this.docs ? 'docs' : this.item) });
+         },
+         goPage(iN, iExec) {
+            this.item = iN;
+            var aPg = this.page[this.item];
+            if (!aPg.query.startsWith(kUrlTag)) {
+               if (iExec)
+                  this.exec();
+               return;
+            }
+            var aXhr = new XMLHttpRequest;
+            aXhr.open('GET', aPg.query.substring(kUrlTag.length));
+            aXhr.onload = c => {
+               if (aXhr.status !== 200) {
+                  this.log(aPg, aPg.query +': '+ aXhr.statusText);
+                  return;
+               }
+               aPg.query = aXhr.responseText;
+               if (iExec)
+                  this.exec();
+            };
+            aXhr.onerror = c => { this.log(aPg, aPg.query +': '+ c.message) };
+            aXhr.send();
+         },
+         addPage() {
+            this.page.push(newPage(++this.draftN, null));
+            this.item = this.page.length-1;
+         },
+         exec() {
+            var aPg = this.page[this.item];
+            aPg.logTxt = '';
+            const [aQstr, aMap] = bgr.queryParse(this.pageQuery, c => { this.log(aPg, c) });
+            if (!aMap)
+               return;
+            if (aPg.resultDate === kLocalResult) {
+               setTimeout(() => { // layout#addScrollWidth() needs this
+                  aPg.layoutMap = aMap;
+                  var aLog = [aPg.name +':'];
+                  treeWalk(aMap, aPg.result, null, aLog);
+                  this.$root.log(aLog[0]);
+               }, 0);
+               return;
+            }
+            postRequest(bgrcfg.targets[this.pageSite], aQstr, cResult => {
+               if (cResult.errors) {
+                  cResult.errors.forEach(cErr => {
+                     if (cErr.path)
+                        this.log(aPg, cErr.path);
+                     this.log(aPg, cErr.message);
+                  });
+                  return;
+               }
+               if (aPg.siteRev !== null) {
+                  aPg.site = aPg.siteRev;
+                  aPg.siteRev = null;
+               }
+               if (aPg.queryRev !== null) {
+                  aPg.query = aPg.queryRev;
+                  aPg.queryRev = null;
+               }
+               aPg.layoutMap = aMap;
+               aPg.result = cResult.data;
+               aPg.resultDate = (new Date).toLocaleString();
+               var aLog = [aPg.name +':'];
+               treeWalk(aMap, cResult.data, null, aLog);
+               this.$root.log(aLog[0]);
+            });
+         },
+         getSchema() {
+            if (this.pageSite in this.schemaCache) {
+               if (this.schema === this.schemaCache[this.pageSite][0])
+                  return;
+               this.schema = this.typemap = null;
+               Vue.nextTick(() => {
+                  this.schema  = this.schemaCache[this.pageSite][0];
+                  this.typemap = this.schemaCache[this.pageSite][1];
+               });
+               return;
+            }
+            this.schema = this.typemap = null;
+            var aSq = bgrcfg.schemaQ;
+            if (!bgrcfg.test || this.pageSite !== 'swapi')
+               aSq = aSq.replaceAll('##', '  ');
+            postRequest(bgrcfg.targets[this.pageSite], aSq, cResult => {
+               if (cResult.errors)
+                  cResult.errors.forEach(c => this.$root.log(c.message));
+               if (!cResult.data)
+                  return;
+               var aMap = {};
+               cResult.data.__schema.types.forEach(c => {
+                  if (c.name in aMap)
+                     this.$root.log('schema has duplicate type name "'+ c.name +'"');
+                  if (c.kind === 'SCALAR')
+                     fixScalarSpec(c);
+                  aMap[c.name] = c;
+               });
+               delete cResult.data.__schema.types;
+               this.schema = cResult.data.__schema;
+               this.typemap = aMap; //todo non-reactive?
+               this.schemaCache[this.pageSite] = [this.schema, this.typemap];
+            });
+         },
+      },
+   });
+
+   function newPage(iName, iCfg) {
+      const aCfgTxt = iCfg && (iCfg.url ? kUrlTag + iCfg.url : iCfg.text || '');
+      return {
+         name: typeof iName === 'string' ? iName : 'Temp-'+ iName,
+         site: iCfg && iCfg.site ? iCfg.site : Object.keys(bgrcfg.targets)[0],
+         siteRev: null,
+         query: iCfg ? aCfgTxt : 'query {\n  \n}',
+         queryRev: null,
+         layoutMap: null,
+         result: iCfg && iCfg.result ? iCfg.result : null,
+         resultDate: iCfg && iCfg.result ? kLocalResult : null,
+         logTxt: iCfg && !aCfgTxt ? 'missing config text or url' : '',
+      };
+   }
+
+   function postRequest(iTarget, iReq, iCb) {
+      var aXhr = new XMLHttpRequest();
+      aXhr.responseType = 'json';
+      aXhr.open('POST', iTarget);
+      aXhr.setRequestHeader('User-Agent', kAgent);
+      aXhr.setRequestHeader('Content-Type', 'application/json');
+      aXhr.setRequestHeader('Accept', 'application/json');
+      aXhr.onload = c => {
+         if (aXhr.status !== 200 && aXhr.status !== 400) {
+            fErr(aXhr.statusText);
+            return;
+         }
+         iCb(aXhr.response);
+      };
+      aXhr.onerror = c => { fErr(c.message) };
+      function fErr(c) { iCb({errors: [{message: 'URL '+ (aXhr.responseURL || iTarget) +': '+ c}] }) }
+      aXhr.send(JSON.stringify({ query: iReq }));
+   }
+
+   function fixScalarSpec(iType) {
+      if (iType.specifiedByURL)
+         return;
+      switch (iType.name.toLowerCase()) {
+      case 'int': case 'float': case 'string': case 'boolean': case 'id':
+         return;
+      case 'uuid':
+         iType.specifiedByURL = 'https://tools.ietf.org/html/rfc4122';
+         break;
+      case 'url':
+         iType.specifiedByURL = 'https://tools.ietf.org/html/rfc3986';
+         break;
+      default:
+         iType.specifiedByURL = 'unknown';
+      }
+   }
+</script>
+
+<script type="text/x-template" id="bgr-docs">
+   <div class="docs">
+      <div v-if="cfg.notes || cfg.url"
+           class="docsnotes">
+         <h3>Notes re {{cfg.title || '?'}}</h3>
+         <p v-if="cfg.notes"
+            >{{cfg.notes}}</p>
+         <p v-if="cfg.url"
+            >For more, see
+            <a :href="cfg.url">{{cfg.url}}</a></p>
+      </div>
+
+      <h3>Documentation - Brangr v0.2</h3>
+
+      <em>For the source code and latest release,
+      see <a href="https://github.com/networkimprov/brangr">Github.com/networkimprov/Brangr</a>.</em>
+
+      <p>Brangr displays GraphQL results in a variety of formats.
+      Its "layouts" determine the format of object fields 
+      (i.e. GraphQL operations and fields with a "selection list"), 
+      and arrays/lists of objects or simple values.
+      </p>
+
+      <p>A layout is specified by adding a <code>_layout</code> argument to a query field, 
+      or a <code>$_layout</code> variable to a query definition.
+      (These are removed from the query text before being sent to the server.)
+      The argument/variable value is an object literal with a <code>type</code> field, 
+      and possibly other fields.
+      </p>
+
+      <p>Rendered layouts are extensively instrumented with CSS classes for custom styling.
+      See the CSS class docs in the file <code>brangr.css</code>.
+      </p>
+
+      <p><strong>Future directions:</strong><br/>
+      - Flexible sorting<br/>
+      - Markdown text rendering<br/>
+      - Generated forms for input variables<br/>
+      - Graphs &amp; charts drawn from request results<br/>
+      - OpenAPI support, with filtering of results via a subset of GraphQL<br/>
+      - A desktop/tablet app, to integrate &amp; share results from diverse sources<br/>
+      </p>
+
+      <p><strong>Feedback welcome!</strong> Feel free to pose questions, report bugs, offer suggestions, 
+      and post comments at the Github project linked above.
+      </p>
+
+      <h4>Stack layout</h4>
+      A stack creates a table with columns for fieldname and value, and a row per object field.
+      It's the default for object fields where no <code>_layout</code> argument is specified.
+      This format displays an array of objects in a vertical sequence.
+
+      <pre ref="stack"
+           >query {<br>  op(_layout: {type:stack}) {{opFields}}}</pre>
+      <layout v-if="hasRef" :src="opResult" :path="path" :layout-map="getMap($refs.stack)"/>
+
+      <h4>Series layout</h4>
+      <p>A series creates one or more rows, each of which contains a specific set of object fields, 
+      in which the fieldname is displayed above its value.
+      This format displays an array of objects in a vertical sequence.
+      </p>
+      Optional <code>_layout</code> argument field:
+      <table><tr>
+         <td><code>rows</code></td> <td>[&nbsp;Int&nbsp;]</td>
+         <td>The number of fields in each row. If unspecified, the series has a single row.</td>
+      </tr></table>
+
+      <pre ref="series"
+           >query {<br>  op(_layout: {type:series, rows:[1,2]}) {{opFields}}}</pre>
+      <layout v-if="hasRef" :src="opResult" :path="path" :layout-map="getMap($refs.series)"/>
+
+      <h4>Table layout</h4>
+      <p>A table creates a regular table with columns for each object field, a header row for the fieldnames, 
+      and one or more rows of values.
+      The rows can be sorted by their first field/column, if it is a scalar or enum type.
+      (More sorting options are planned.)
+      This format accommodates an array of objects.
+      </p>
+      Optional <code>_layout</code> argument field:
+      <table><tr>
+         <td><code>sort</code></td> <td>String</td>
+         <td>The sort order, <code>":a"</code> for ascending or <code>":d"</code> for descending.</td>
+      </tr></table>
+
+      <pre ref="table"
+           >query {<br>  op(_layout: {type:table}) {{opFields}}}</pre>
+      <layout v-if="hasRef" :src="opResult" :path="path" :layout-map="getMap($refs.table)"/>
+
+      <h4>Cell layout</h4>
+      <p>A cell creates a grid of one or more objects, 
+      each of which displays field values (without fieldnames) in either 
+      a horizontal sequence separated by a delimiter (for simple values), or 
+      a vertical sequence (for object values), or a mix of the two.
+      This format accommodates an array of objects.
+      </p>
+      Optional <code>_layout</code> argument fields:
+      <table><tr>
+         <td><code>cols</code></td> <td>Int</td>
+         <td>The number of cells in each grid row. If unspecified, the grid has a single row.</td>
+      </tr><tr>
+         <td><code>delim</code></td> <td>String</td>
+         <td>The string to display between values within a cell.
+             If unspecified, the delimiter is comma+space.</td>
+      </tr></table>
+
+      <pre ref="cell"
+           >query {<br>  op(_layout: {type:cell, cols:4}) {<br>    Time<br>  }<br>}</pre>
+      <layout v-if="hasRef" :src="cellResult" :path="path" :layout-map="getMap($refs.cell)"/>
+
+      <h4>List layout</h4>
+      <p>A list displays an array of simple field values in a horizontal sequence separated by a delimiter.
+      The sequence can be segmented into multiple rows.
+      </p>
+      Optional <code>_layout</code> argument fields:
+      <table><tr>
+         <td><code>cols</code></td> <td>Int</td>
+         <td>The number of array values in each row. If unspecified, the list has a single row.</td>
+      </tr><tr>
+         <td><code>delim</code></td> <td>String</td>
+         <td>The string to display between array values. If unspecified, the delimiter is comma+space.</td>
+      </tr></table>
+
+      <pre ref="list"
+           >query {<br>  op {<br>    Action(_layout: {type:list, cols:4, delim:" | "})<br>  }<br>}</pre>
+      <layout v-if="hasRef" :src="listResult" :path="path" :layout-map="getMap($refs.list)"/>
+
+      <h4>Layout for multiple top-level operations</h4>
+      To configure a layout for a set of top-level operations, provide a named query 
+      that defines a <code>$_layout</code> variable of type <code>_</code>&nbsp;(underscore). 
+      (It's a bit awkward, but GraphQL queries don't accept arguments!)
+
+      <pre ref="top"
+           >query top($_layout: _={type:table}) {<br>  op1 {{opFields}}  op2 {{opFields}}}</pre>
+      <layout v-if="hasRef" :src="opResultx2" :path="path" :layout-map="getMap($refs.top)"/>
+
+      <h4>Scrollable and hidden layouts</h4>
+      <p>The layout types that apply to object fields (stack, series, table, cell), when set for a field 
+      that produces an array of objects, can accept the arguments 
+      <code>minh</code> and/or <code>maxh</code>.
+      These take a value in CSS length units (e.g. <code>10em, 200px, 35vh</code>).
+      </p>
+      Optional <code>_layout</code> argument fields:
+      <table><tr>
+         <td><code>minh</code></td> <td>String</td>
+         <td>The minimum height of the container displaying the array.</td>
+      </tr><tr>
+         <td><code>maxh</code></td> <td>String</td>
+         <td>The maximum height of the container displaying the array.
+             The container provides a scrollbar when needed.
+             When <code>"0"</code> the array contents are hidden, 
+             but can be displayed via the provided hyperlink.</td>
+      </tr></table>
+
+      <pre ref="scroll"
+           >query {<br>  op(_layout: {type:stack, maxh:"5em"}) {{opFields}}}</pre>
+      <layout v-if="hasRef" :src="opResult" :path="path" :layout-map="getMap($refs.scroll)"/>
+
+      <pre ref="hide"
+           >query {<br>  op(_layout: {type:series, rows:[1,2], maxh:"0"}) {{opFields}}}</pre>
+      <layout v-if="hasRef" :src="opResult" :path="path" :layout-map="mapHide"/>
+
+      <h4>Layout embedding</h4>
+      Layouts can appear within a field object using any type of layout.
+
+      <pre ref="embed"
+           >query {<br>  op(_layout: {type:table}) {<br>    Item<br>{{
+                     }}    Embed(_layout: {type:cell}) {<br>      x<br>    }<br>  }<br>}</pre>
+      <layout v-if="hasRef" :src="embResult" :path="path" :layout-map="getMap($refs.embed)"/>
+
+      <h3>License</h3>
+      <p>Copyright 2023 Liam Breck</p>
+
+      <p>This Source Code Form is subject to the terms of the Mozilla Public
+      License, v. 2.0. If a copy of the MPL was not distributed with this
+      file, You can obtain one at <a href="http://mozilla.org/MPL/2.0/">http://mozilla.org/MPL/2.0/</a>
+      </p>
+   </div>
+</script><script type="module">
+   import * as Vue from "https://cdnjs.cloudflare.com/ajax/libs/vue/3.3.4/vue.esm-browser.min.js"
+
+   bgr.app.component('docs', {
+      template: '#bgr-docs',
+      props: {cfg: Object},
+      data() { return { hasRef: false, mapHide: null } },
+      mounted() {
+         this.mapHide = this.getMap(this.$refs.hide);
+         this.hasRef = true;
+      },
+      computed: {
+         path() { return 'opDef' },
+         opFields() { return '{\n    Title\n    Time\n    Action\n  }\n' },
+         opResult() {
+            return { op: [
+               { Title: 'Transit A', Time: 2.5, Action: 14 },
+               { Title: 'Hiatus B',  Time: 7.5, Action: 28 },
+            ] };
+         },
+         cellResult() {
+            return { op: [
+               {Time:1.1}, {Time:2.8}, {Time:4.6}, {Time:3.3}, {Time:3.2},
+               {Time:1.8}, {Time:1.4}, {Time:6.6}, {Time:3.6}, {Time:3.1},
+            ] };
+         },
+         listResult() { return { op: {Action: [7, 21, 14, 56, 42, 28, 35, 63, 77, 70]} } },
+         opResultx2() { return { op1: this.opResult.op[0], op2: this.opResult.op[1] } },
+         embResult() { return { op: {Item: 'hi', Embed: {x: 42}} } },
+      },
+      methods: {
+         getMap(iEl) {
+            var [aS, aMap] = bgr.queryParse(iEl.innerText, c => { this.$root.log(c) });
+            if (!aMap) throw Error(this.$root.logtxt);
+            return aMap;
+         },
+      },
+   });
+</script>
+
+<script type="text/x-template" id="bgr-layout">
+   <template v-if="argType !== 'list' && Array.isArray(obj) && !aryok">
+      <div v-if="ary.length === 0"
+           :class="[lclass, 'fa', 'fa-'+field, 'ae']"
+           >Empty List</div>
+      <div v-else-if="argMaxh === '0'"
+           :class="[lclass, 'fa', 'fa-'+field, 'ah']">
+         <a @click.prevent="delete args.maxh"
+            :href="'#fa-'+field"
+            >Show {{ary.length}} items</a></div>
+      <div v-else
+           ref="scrollY"
+           :class="[lclass, 'fa', 'fa-'+field, {pgmaxh:argMaxh}]"
+           :style="{'min-height':argMinh, 'max-height':argMaxh, width:null, 'overflow-y':null}">
+         <layout v-if="argType === 'cell' || argType === 'table'"
+                 :src="src" :path="path" :layout-map="layoutMap" :aryok="true"/>
+         <layout v-else
+                 v-for="aV in obj"
+                 :src="aV" :path="path" :layout-map="layoutMap"/>
+      </div>
+   </template>
+   <table v-else-if="argType === 'stack'"
+          :class="['lo', lclass, 'fo', 'fo-'+field]">
+      <tr v-for="(aV, aK) in obj">
+         <template v-if="aV === null || typeof aV !== 'object'">
+            <td :class="[lclass, 'fn', 'fn-'+aK]"
+                >{{aK}}:</td>
+            <td :class="[lclass, 'fv', 'fv-'+aK]"
+                >{{aV}}</td>
+         </template>
+         <td v-else
+             colspan="2">
+            <div :class="[lclass, 'fn', 'fn-'+aK]"
+                 >{{aK}}...</div>
+            <div><!--for css-->
+               <layout :src="aV" :path="pathNext + aK" :layout-map="layoutMap"/></div>
+         </td>
+      </tr></table>
+   <table v-else-if="argType === 'table'"
+          :class="['lo', lclass]">
+      <tr>
+         <th v-for="(aV, aK) in ary[0]"
+             :class="[lclass, 'fn', 'fn-'+aK, {pgmaxh: Array.isArray(obj) && argMaxh}]"
+             >{{aK}}</th></tr>
+      <tr v-for="aObj in ary"
+          :class="[lclass, 'fo', 'fo-'+field]">
+         <template v-for="(aV, aK) in aObj">
+            <td v-if="aV === null || typeof aV !== 'object'"
+                :class="[lclass, 'fv', 'fv-'+aK]"
+                >{{aV}}</td>
+            <td v-else>
+               <layout :src="aV" :path="pathNext + aK" :layout-map="layoutMap"/></td>
+         </template></tr>
+   </table>
+   <div v-else-if="argType === 'series'"
+        :class="['lo', lclass, 'fo', 'fo-'+field]">
+      <div v-for="(aNext, aR) in argRows">
+         <template v-for="(aV, aK, a) in obj">
+            <div v-if="a >= (aR && argRows[aR-1]) && a < aNext">
+               <div :class="[lclass, 'fn', 'fn-'+aK]"
+                    >{{aK}}</div>
+               <div v-if="aV === null || typeof aV !== 'object'"
+                    :class="[lclass, 'fv', 'fv-'+aK]"
+                    >{{aV}}</div>
+               <layout v-else
+                       :src="aV" :path="pathNext + aK" :layout-map="layoutMap"/>
+            </div></template></div></div>
+   <table v-else-if="argType === 'cell'"
+          :class="['lo', lclass]">
+      <tr v-for="(aN, aR) in rowsForCols">
+         <td v-for="(aN, aD) in argCols"
+             :class="[lclass, 'fo', 'fo-'+field]">
+            <template v-for="aVals in [Object.values(ary[aR * argCols + aD] || {})]">
+            <template v-for="(aV, aK, a) in ary[aR * argCols + aD] || null">
+               <span v-if="aV === null || typeof aV !== 'object'"
+                     :class="[lclass, 'fv', 'fv-'+aK]"
+                     >{{a > 0 && (aVals[a-1] === null || typeof aVals[a-1] !== 'object') ?
+                        argDelim : null}}{{aV}}</span>
+               <layout v-else
+                       :src="aV" :path="pathNext + aK" :layout-map="layoutMap"/>
+            </template></template>
+         </td></tr></table>
+   <div v-else-if="argType === 'list'"
+        :class="['lo', lclass, 'fv', 'fv-'+field]">
+      <div v-for="(aN, aR) in rowsForCols">
+         <template v-for="(aN, aD) in argCols">
+            <template v-if="aR * argCols + aD < ary.length"
+                      >{{aD > 0 ? argDelim : null}}{{ary[aR * argCols + aD]}}</template></template>
+      </div></div>
+   <div v-else
+        class="lu">layout not known: "{{argType}}"</div>
+</script><script type="module">
+   import * as Vue from "https://cdnjs.cloudflare.com/ajax/libs/vue/3.3.4/vue.esm-browser.min.js"
+
+   bgr.app.component('layout', {
+      template: '#bgr-layout',
+      props: { src: Object, path: String, layoutMap: Object, aryok: Boolean },
+      data() { return {} },
+      created()      { this.sortTable() },
+      beforeUpdate() { this.sortTable() },
+      mounted() { this.addScrollWidth() },
+      updated() { this.addScrollWidth() },
+      methods: {
+         sortTable() {
+            if (!this.argSort || this.argType !== 'table' || this.ary.length <= 1)
+               return;
+            const aOrd = this.argSort === ':a' ? 1 : -1;
+            this.src.sort((cA, cB) => {
+               const cVa = Object.values(cA)[0],
+                     cVb = Object.values(cB)[0];
+               if (cVa !== null && typeof cVa === 'object' ||
+                   cVb !== null && typeof cVb === 'object')
+                  return 0;
+               return cVa < cVb ? -aOrd : cVa > cVb ? aOrd : 0;
+            });
+         },
+         addScrollWidth() {
+            //console.log(this.path +' '+ this.argType +' '+ (this.argMaxh||''));
+            if (!this.$refs.scrollY || !this.argMaxh)
+               return;
+            var aW = this.$refs.scrollY.offsetWidth;
+            this.$refs.scrollY.style.width = aW + 10 +'px'; // half of scrollbar (~9px) is overlaid
+            this.$refs.scrollY.style['overflow-y'] = 'auto';
+         },
+      },
+      computed: {
+         field() {
+            const aPos = this.path.lastIndexOf(',');
+            return aPos < 0 ? '-top' : this.path.substring(aPos+1);
+         },
+         pathNext() { return this.path.length ? this.path +',' : '' },
+         obj() {
+            if (typeof this.src === 'undefined')
+               return {error: 'No data'};
+            return this.src !== null && typeof this.src === 'object' ? this.src : {data: this.src};
+         },
+         ary() { return Array.isArray(this.obj) ? this.obj : [this.obj] },
+         lclass() { return 'l'+ this.argType.substring(0, 2) },
+         argType() { return this.args && this.args.type ? this.args.type.value.toLowerCase() : 'stack' },
+         argRows() {
+            var aRows = this.args && this.args.rows;
+            if (!aRows)
+               return [Object.values(this.obj).length]; // better way to get own-property count?
+            var aPos = [], aSum = 0;
+            aRows.values.forEach(c => { aPos.push(aSum += c.value*1) });
+            return aPos;
+         },
+         argCols() { return this.args && this.args.cols ? this.args.cols.value*1 : this.ary.length },
+         argDelim() { return this.args && this.args.delim ? this.args.delim.value : ', ' },
+         argSort() { return this.args && this.args.sort ? this.args.sort.value : null },
+         argMinh() { return this.args && this.args.minh ? this.args.minh.value : null },
+         argMaxh() { return this.args && this.args.maxh ? this.args.maxh.value : null },
+         args() {
+            var aPath = this.path.split(',');
+            return bgr.findLayout(this.layoutMap, aPath, aPath.pop());
+         },
+         rowsForCols() {
+            return (this.ary.length - this.ary.length % this.argCols) / this.argCols
+                   + (this.ary.length % this.argCols > 0);
+         },
+      },
+   });
+</script>
+
+<script type="text/x-template" id="bgr-schema">
+   <div v-for="(aV, a) in path"
+        class="schemahdr"
+        :class="{'schemahdr-bg': a < path.length-1, 'schemahdr-bdr': a === path.length-2}"
+        :style="{'padding-left': 1*a +'em'}">
+      <schematype @into="addPath" @out="dropPath"
+                  :open="a === path.length-1" :level="a+1"
+                  :src="aV.src" :label="aV.label" :typemap="typemap"
+                  :args="aV.args" :title="aV.title"/></div>
+   <div v-show="path.length === 0">
+      <div v-if="src.description"
+           >{{src.description}}</div>
+      <schematype v-if="src.queryType"
+                  @into="addPath" @out="dropPath"
+                  :open="false"
+                  :src="src.queryType" :label="'query'" :typemap="typemap"/>
+      <schematype v-if="src.mutationType"
+                  @into="addPath" @out="dropPath"
+                  :open="false"
+                  :src="src.mutationType" :label="'mutation'" :typemap="typemap"/>
+      <schematype v-if="src.subscriptionType"
+                  @into="addPath" @out="dropPath"
+                  :open="false"
+                  :src="src.subscriptionType" :label="'subscription'" :typemap="typemap"/>
+      <div v-if="src.directives.length">
+         <div @click="dtvOpen = !dtvOpen"
+              class="uipoint schemahdr">
+            <span class="schemabtn">{{dtvOpen ? '&minus;' : '&plus;'}}</span>
+            Directives
+         </div>
+         <div v-show="dtvOpen"
+              class="schemaspc">
+            <directive v-for="aV in src.directives"
+                       :src="aV" :typemap="typemap"/></div>
+      </div>
+   </div>
+</script><script type="module">
+   import * as Vue from "https://cdnjs.cloudflare.com/ajax/libs/vue/3.3.4/vue.esm-browser.min.js"
+
+   bgr.app.component('schema', {
+      template: '#bgr-schema',
+      props: { src: Object, typemap: Object },
+      data() { return { path: [], dtvOpen: false } },
+      computed: {},
+      methods: {
+         addPath(iSrc, iLabel, iArgs, iTitle) {
+            this.path.push({src:iSrc, label:iLabel, args:iArgs, title:iTitle});
+         },
+         dropPath(iN) {
+            while (iN <= this.path.length)
+               this.path.pop();
+         },
+      },
+   });
+</script>
+
+<script type="text/x-template" id="bgr-directive">
+   <div @click="open = !open"
+        class="uipoint schemahdr">
+      <span class="schemabtn">{{open ? '&minus;' : '&plus;'}}</span>
+      {{src.name}}
+      {{!open && src.args && src.args.length ? '(&hellip;)' : null}}
+      <span v-if="src.isRepeatable"
+            title="Repeatable">1+</span>
+   </div>
+   <div v-show="open"
+        class="schemaspc">
+      <template v-if="src.args && src.args.length">
+         <div style="float:left"
+              class="uicap1"
+              >arg{{src.args.length > 1 ? 's' : null}}:</div>
+         <div style="margin-left:3em">
+            <schematype v-for="aV in src.args"
+                        :open="false"
+                        :src="aV.type" :typemap="typemap"
+                        :label="aV.name +(aV.defaultValue ? '='+ aV.defaultValue : '')"
+                        :title="aV.description"/></div>
+      </template>
+      <div style="float:left"
+           class="uicap1"
+           >site{{src.locations.length > 1 ? 's' : null}}:</div>
+      <div v-for="aL in src.locations"
+           style="margin-left:4.25em; text-transform:lowercase"
+           >{{aL}}</div>
+      <div v-if="src.description"
+           >{{src.description}}</div>
+   </div>
+</script><script type="module">
+   import * as Vue from "https://cdnjs.cloudflare.com/ajax/libs/vue/3.3.4/vue.esm-browser.min.js"
+
+   bgr.app.component('directive', {
+      template: '#bgr-directive',
+      props: { src: Object, typemap: Object },
+      data() { return { open:false } },
+      computed: {},
+   });
+</script>
+
+<script type="text/x-template" id="bgr-schematype">
+   <div @click="inOut"
+        :class="{uipoint: canOpen, schemasub: openInline && opened}"
+        :title="title">
+      <span v-if="openInline"
+            :class="{uihide: !canOpen}"
+            class="schemabtn"
+            >{{opened ? '&minus;' : '&plus;'}}</span>
+      <span v-else
+            :class="{'schemabtn-obj': !level}"
+            class="schemabtn"
+            >{{level ? '&times;' : '&#x2b07;'}}</span>
+      {{label}}
+      {{!opened && args && args.length ? '(&hellip;)' : null}}
+      <div v-if="modName || obj.kind === 'SCALAR' || obj.kind === 'ENUM'"
+           :title="obj.name === '?' ? obj.description : null"
+           style="float:right; width:5em"
+           >{{modName || extName(obj) || obj.name}}</div>
+   </div>
+   <div v-if="open || openInline && opened"
+        :class="{schemasub: openInline && opened, 'schemasub-bdr': openInline && opened}"
+        class="schemaspc">
+      <template v-if="args && args.length">
+         <div style="float:left"
+              class="uicap1"
+              >arg{{args.length > 1 ? 's' : null}}:</div>
+         <div style="margin-left:3em">
+            <schematype v-for="aV in args"
+                        @into="fwdInto"
+                        :open="false"
+                        :src="aV.type" :typemap="typemap"
+                        :label="aV.name +(aV.defaultValue ? '='+ aV.defaultValue : '')"
+                        :title="aV.description"/></div>
+      </template>
+      <div class="schemainfo">
+         <span>{{obj.kind.toLowerCase()}}</span>
+         {{obj.name +': '+ (obj.description || '&minus;')}}
+         <div v-if="obj.specifiedByURL"
+              class="uicap1">
+            <template v-if="obj.specifiedByURL === 'unknown'"
+                      >Type spec missing</template>
+            <a v-else
+               :href="obj.specifiedByURL">Type spec</a>
+         </div>
+      </div>
+      <schematype v-for="aV in obj.fields"
+                  @into="fwdInto"
+                  :open="false"
+                  :src="aV.type" :label="aV.name" :typemap="typemap"
+                  :title="aV.description" :args="aV.args"/>
+      <template v-for="aTypes in [obj.interfaces, obj.possibleTypes]">
+         <schematype v-for="aV in aTypes"
+                     @into="fwdInto"
+                     :open="false"
+                     :src="aV" :label="'... on '+ aV.name" :typemap="typemap"/></template>
+      <div v-if="obj.enumValues && obj.enumValues.length">
+         <div style="float:left"
+              class="uicap1"
+              >val{{obj.enumValues.length > 1 ? 's' : null}}:</div>
+         <div style="margin-left:3em">
+            <template v-for="(aV, a) in obj.enumValues">
+               <span :title="aV.description"
+                     >{{a > 0 ? '&nbsp;' : null}}{{aV.name}}{{a < obj.enumValues.length-1 ? ',' : null}}</span>
+               {{}}
+            </template></div>
+      </div>
+      <schematype v-for="aV in obj.inputFields"
+                  @into="fwdInto"
+                  :open="false"
+                  :src="aV.type" :typemap="typemap"
+                  :label="aV.name +(aV.defaultValue ? '='+ aV.defaultValue : '')"
+                  :title="aV.description"/>
+   </div>
+</script><script type="module">
+   import * as Vue from "https://cdnjs.cloudflare.com/ajax/libs/vue/3.3.4/vue.esm-browser.min.js"
+
+   bgr.app.component('schematype', {
+      template: '#bgr-schematype',
+      props: { open: Boolean, level: Number, title: String, label: String,
+               args: Array, src: Object, typemap: Object },
+      emits: ['into', 'out'],
+      data() { return { opened:false, modName:null } },
+      computed: {
+         obj() {
+            var aT = this.src;
+            if (aT.name)
+               return this.typemap[aT.name];
+            var aMod = [];
+            while (aT.ofType) {
+               aMod.push(aT.kind);
+               aT = aT.ofType;
+            }
+            if (!aT.name)
+               return {kind: 'SCALAR', name: '?',
+                       description: 'adjust __schema query to complete ofType chain'};
+            aT = this.typemap[aT.name];
+            this.modName = this.extName(aT) || (aT.kind === 'SCALAR' ? aT.name : '...');
+            aMod.reverse().forEach(c => {
+               if (c === 'LIST')
+                  this.modName = '['+ this.modName +']';
+               else
+                  this.modName += '\u00A0!'; // 00A0 = nbsp
+            });
+            return aT;
+         },
+         canOpen() { return this.obj.kind !== 'SCALAR' ||
+                            this.args && this.args.length ||
+                            typeof this.obj.specifiedByURL === 'string' },
+         openInline() { return this.obj.kind === 'SCALAR' ||
+                               this.obj.kind === 'ENUM' ||
+                               this.obj.kind === 'INPUT_OBJECT' },
+      },
+      created() { this.opened = this.open },
+      methods: {
+         extName(iT) {
+            return iT.kind === 'ENUM' ? 'Enum' : typeof iT.specifiedByURL === 'string' ? 'Custom' : null;
+         },
+         inOut() {
+            if (!this.canOpen)
+               return;
+            if (this.openInline) {
+               this.opened = !this.opened;
+               return;
+            }
+            if (!this.level) {
+               this.$emit('into', this.src, this.label, this.args, this.title);
+            } else {
+               this.$emit('out', this.level);
+            }
+         },
+         fwdInto(i1,i2,i3,i4) { this.$emit('into',i1,i2,i3,i4) },
+      },
+   });
+</script>
+
+<script type="module">
+   import * as gql from "https://cdn.jsdelivr.net/npm/graphql@16.6.0/+esm";
+
+   const kListArg = {type: {value: 'list'}}; // default for scalar fields
+   var sDoc, sPath, sName;
+
+   bgr.queryParse = (iQ, iLog) => {
+      try {
+      sDoc = gql.parse(iQ);
+      } catch (aErr) {
+         iLog('Query '+ aErr.message);
+         return [];
+      }
+      const aDef = sDoc.definitions.findLast(c => c.kind === 'OperationDefinition');
+      if (!aDef || aDef !== sDoc.definitions[0]) {
+         iLog('Query text must start with '+ (aDef ? 'and contain a single' : 'an') +' operation');
+         return [];
+      }
+      var aQ2 = '';
+/*    gql.visit(sDoc, {enter: fVisitEnter, leave: null});
+      function fVisitEnter(iNode, iKey, iParent, iPath, iAncestors) {
+         if (iNode.kind === 'Name' || iNode.kind === 'NamedType')
+            return false;
+         aQ2 += '\n node '+ iNode.kind +','+ (iNode.name ? iNode.name.value : '--');
+         if (iNode.kind === 'Argument')
+            return false;
+      }
+*/
+      var aLayoutMap = {};
+      sPath = [aLayoutMap];
+      sName = null;
+      try {
+      gql.visit(sDoc.definitions[0], {enter: _visitMap, leave: _visitLeave});
+      } catch (aErr) {
+         iLog(aErr.message +'\n\n'+ gql.print(sDoc));
+         return [];
+      }
+      aQ2 += '\n   '+ JSON.stringify(aLayoutMap); ///
+      document.getElementById('test').innerText = aQ2;
+      const aQstr = gql.print(gql.visit(sDoc, {enter(iNode) {
+         if (iNode.kind === 'Argument') {
+            if (iNode.name.value === '_layout')
+               return null;
+         } else if (iNode.kind === 'VariableDefinition') {
+            if (iNode.variable.name.value === '_layout' && iNode.type.name.value === '_')
+               return null;
+         }
+      }}));
+      return [aQstr, aLayoutMap];
+   };
+
+   function _visitMap(iNode, iKey, iParent, iPath, iAncestors) {
+      switch (iNode.kind) {
+      case 'OperationDefinition':
+         sName = 'opDef';
+         sPath[sPath.length-1].opDef = {arg: null, sel: null};
+         return;
+      case 'VariableDefinition':
+         if (iNode.variable.name.value === '_layout' && iNode.type.name.value === '_') {
+            const aErr = validateLayout(iNode.defaultValue, true);
+            if (aErr)
+               throw Error('$_layout variable '+ aErr);
+            var aArg = {};
+            iNode.defaultValue.fields.forEach(c => { aArg[c.name.value] = c.value });
+            sPath[sPath.length-1].opDef.arg = aArg;
+         }
+         return false;
+      case 'Field':
+         sName = iNode.name.value;
+         sPath[sPath.length-1][sName] = {arg: null, sel: null};
+         return;
+      case 'SelectionSet':
+         if (iParent.kind === 'OperationDefinition' || iParent.kind === 'Field')
+            sPath.push(sPath[sPath.length-1][sName].sel = {});
+         return;
+      case 'FragmentSpread':
+         var aDef = sDoc.definitions.findLast(c => c.name.value === iNode.name.value);
+         if (!aDef || aDef === sDoc.definitions[0])
+            throw Error('Query fragment '+ iNode.name.value +' not found');
+         gql.visit(aDef, {enter: _visitMap, leave: _visitLeave});
+         return;
+      case 'InlineFragment':
+      case 'FragmentDefinition':
+         sName = null;
+         return;
+      case 'Argument':
+         if (iNode.name.value === '_layout') {
+            if (sPath[sPath.length-1][sName].arg)
+               throw Error('muliple _layout arguments apply to '+ sName);
+            var aErr = validateLayout(iNode.value, !! iAncestors[iAncestors.length-1].selectionSet);
+            if (aErr)
+               throw Error(sName +' _layout argument '+ aErr);
+            var aArg = {};
+            iNode.value.fields.forEach(c => { aArg[c.name.value] = c.value });
+            sPath[sPath.length-1][sName].arg = aArg;
+         }
+         return false;
+      default:
+         return false;
+      }
+   }
+
+   function validateLayout(iNode, iHasSel) {
+      if (iNode.kind !== 'ObjectValue')
+         return 'must be an object';
+      var aType = null;
+      for (const aF of iNode.fields) {
+         if (aF.name.value !== 'type')
+            continue;
+         aType = aF.value.value.toLowerCase();
+         break;
+      }
+      switch (aType) {
+      case 'stack': case 'table': case 'series': case 'cell':
+         if (!iHasSel)
+            return 'type '+ aType +' only formats object fields';
+         break;
+      case 'list':
+         if (iHasSel)
+            return 'type '+ aType +' doesn\'t format object fields';
+         break;
+      case null: case '':
+         return 'type is missing';
+      default:
+         return 'type '+ aType +' is unknown';
+      }
+      for (const aF of iNode.fields) {
+         switch (aF.name.value) {
+         case 'type':
+            break;
+         case 'rows':
+            if (aType !== 'series')
+               return 'rows requires type series';
+            if (aF.value.kind !== 'ListValue')
+               return 'rows must be a list of integers';
+            for (const aV of aF.value.values)
+               if (aV.kind !== 'IntValue' || aV.value*1 <= 0)
+                  return 'rows must be a list of integers >0';
+            break;
+         case 'cols':
+            if (aType !== 'cell' && aType !== 'list')
+               return 'cols requires type cell or list';
+            if (aF.value.kind !== 'IntValue' || aF.value.value*1 <= 0)
+               return 'cols must be an integer >0';
+            break;
+         case 'delim':
+            if (aType !== 'cell' && aType !== 'list')
+               return 'delim requires type cell or list';
+            if (aF.value.kind !== 'StringValue')
+               return 'delim must be a string';
+            break;
+         case 'sort':
+            if (aType !== 'table')
+               return 'sort requires type table';
+            if (aF.value.kind !== 'StringValue')
+               return 'sort must be a string';
+            if (aF.value.value !== ':a' && aF.value.value !== ':d')
+               return 'sort must be ":a" or ":d"';
+            break;
+         case 'maxh': case 'minh':
+            if (aType === 'list')
+               return aF.name.value +' does not support type list';
+            if (aF.value.kind !== 'StringValue')
+               return aF.name.value +' must be a string';
+            break;
+         default:
+            return 'field '+ aF.name.value +' is unknown';
+         }
+      }
+      return null;
+   }
+
+   function _visitLeave(iNode, iKey, iParent, iPath, iAncestors) {
+      if (iNode.kind === 'SelectionSet' &&
+          (iParent.kind === 'OperationDefinition' || iParent.kind === 'Field')) {
+         var aSel = sPath.pop();
+         var aField = Object.values(sPath[sPath.length-1]).find(c => c.sel === aSel);
+         if (aField.arg && ('rows' in aField.arg)) {
+            var aSum = 0;
+            aField.arg.rows.values.forEach(c => { aSum += c.value*1 });
+            var aSelTot = Object.values(aSel).length;
+            if (aSum !== aSelTot)
+               throw Error(iParent.name.value +' _layout argument rows total value must match the '+
+                           aSelTot +' selected fields');
+         }
+      }
+   }
+
+   bgr.findLayout = (iLayoutMap, iPath, iField) => {
+      var aSel = iLayoutMap;
+      iPath.forEach(c => { aSel = aSel[c].sel });
+      if (!aSel[iField])
+         return null;
+      return aSel[iField].sel || aSel[iField].arg ? aSel[iField].arg : kListArg;
+   };
+
+</script>
+
+
+</body></html>
