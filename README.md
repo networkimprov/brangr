@@ -1,5 +1,3 @@
-README.md
-
 ## Brangr - *Br*owse *An*y *Gr*aph
 
 Brangr is a simple, unique tool that any website can host 
@@ -15,10 +13,12 @@ a collection of pre-fab GraphQL requests, which they can edit if desired,
 and let them create their own requests.
 And it allows sites to define custom CSS styling for all aspects of the formatted results.
 
-It's fast &amp; small.
+It's fast &amp; small.[<img alt="Public Brangr site" width="48%" hspace="3" align="right"
+                            src="https://github.com/networkimprov/brangr/assets/458838/a9cfce13-fbac-4b7c-9eb9-61732c200e9a"
+                            >](https://mnmnotmail.org/bgr/brangr.html)
 It's a browser-based app, not a code module (although that might be arranged).
 It's built with Vue.js, in ordinary Javascript & plain CSS, 
-and employs the GraphQL.js language module [1].
+and employs the GraphQL.js language module&nbsp;[1].
 It's tested on Firefox, Safari, and Chrome.
 
 More features are on the drawing board &mdash; please convey what your GraphQL users need!
