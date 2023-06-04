@@ -1,6 +1,6 @@
 ## Brangr - *Br*owse *An*y *Gr*aph
 
-Brangr is a simple, unique tool that any website can host 
+Brangr is a simple, unique tool that any web server can host 
 to provide a user-friendly browser/viewer for any GraphQL service (or many).
 
 Brangr formats GraphQL results attractively, via a selection of user-configurable layouts.
@@ -13,7 +13,7 @@ a collection of pre-fab GraphQL requests, which they can edit if desired,
 and let them create their own requests.
 And it allows sites to define custom CSS styling for all aspects of the formatted results.
 
-It's fast &amp; small.[<img alt="Public Brangr site" width="48%" hspace="0" align="right"
+It's fast &amp; small.[<img title="Public Brangr site" width="48%" hspace="0" align="right"
                             src="https://user-images.githubusercontent.com/458838/243126589-a9cfce13-fbac-4b7c-9eb9-61732c200e9a.png"
                             >](https://mnmnotmail.org/bgr/brangr.html)
 It's a browser-based app, not a code module (although that might be arranged).
@@ -23,7 +23,7 @@ It's tested on Firefox, Safari, and Chrome.
 
 More features are on the drawing board &mdash; please convey what your GraphQL users need!
 
-Try it at the [public Brangr site](https://mnmnotmail.org/bgr/brangr.html).
+Try it at the [**public Brangr site**](https://mnmnotmail.org/bgr/brangr.html).
 
 \
 [1] https://graphql.org/graphql-js/language
